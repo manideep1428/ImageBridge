@@ -1,0 +1,34 @@
+{
+  "name": "img",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "tsx watch src/server.ts",
+    "server": "tsx watch src/server.ts",
+    "tryon": "tsx run-tryon.ts",
+    "login": "tsx login.ts",
+    "login:chatgpt": "tsx login.ts --provider chatgpt",
+    "login:gemini": "tsx login.ts --provider gemini",
+    "test:image": "tsx test-image.ts",
+    "test:instagram": "tsx test-tryon-instagram.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^26.2.0",
+    "tsx": "^4.23.12"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@google/genai": "^2.17.1",
+    "@mrnima/instagram-downloader": "^1.0.0",
+    "@types/express": "^5.0.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "playwright": "^1.62.1",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  }
+}

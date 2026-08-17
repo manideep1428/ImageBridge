@@ -1,0 +1,63 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build & output
+out
+dist
+*.tgz
+coverage
+*.lcov
+
+# Logs & caches
+logs
+*.log
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+.bun
+.eslintcache
+.cache
+*.tsbuildinfo
+
+# Environment & secret keys
+.env
+.env.*
+.env.local
+!.env.example
+*.pem
+*.key
+*.p12
+*.token
+
+# Browser runtime profiles (Created automatically upon login - DO NOT COMMIT)
+chatgpt-profile/
+gemini-profile/
+test-profile/
+*profile*/
+**/User Data/
+**/Default/
+**/Cookies*
+**/*Session*
+
+# Private custom prompts & prompt builders (DO NOT COMMIT)
+prompt.ts
+custom-prompt*
+*.prompt.ts
+prompts/
+
+# Output images & uploaded character photos
+outputs/
+**/outputs/
+charcter/
+character/
+**/charcter/*
+**/character/*
+debug/
+tmp/
+test-refs/
+sample-ref.png
+
+# IDE & OS files
+.idea
+.vscode
+.DS_Store
+Thumbs.db
