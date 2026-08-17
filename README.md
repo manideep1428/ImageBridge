@@ -1,6 +1,6 @@
-# AI Image Generation & Virtual Try-On API Server (ChatGPT & Gemini)
+# AI Image Generation REST API Server (ChatGPT & Gemini)
 
-A high-performance Express REST API server and automated browser engine for generating AI images and virtual fashion try-on lookbooks using **ChatGPT** (DALL-E 3 / GPT-4o Image Model) and **Gemini** (Imagen 3), featuring dual-tier storage (**Local Server Disk** & **Bunny CDN Edge Storage**).
+A high-performance Express REST API server and automated browser engine for generating AI images using **ChatGPT** (DALL-E 3 / GPT-4o Image Model) and **Gemini** (Imagen 3), featuring dual-tier storage (**Local Server Disk** & **Bunny CDN Edge Storage**).
 
 ---
 
@@ -15,14 +15,14 @@ A high-performance Express REST API server and automated browser engine for gene
 
 ## 🌟 Key Features
 
-- 🤖 **Multi-Model Support**: Switch seamlessly between **ChatGPT** and **Google Gemini** image generation models.
+- 🤖 **Multi-Model Support**: Generate AI images seamlessly with **ChatGPT** and **Google Gemini**.
 - 🔐 **Persistent Browser Session Profiles**: Log in once interactively; session cookies and tokens are safely persisted locally in `chatgpt-profile/` or `gemini-profile/` (automatically created, never committed to Git).
-- 💾 **Flexible Storage Engine (Local + Bunny CDN)**:
-  - **Local Only (`STORAGE_MODE=local`)**: Saves directly to disk (`./outputs/`) and serves via Express static HTTP URL (`http://localhost:3001/outputs/...`). No cloud accounts needed!
+- 💾 **Dual-Tier Storage Engine (Local + Bunny CDN)**:
+  - **Local Only (`STORAGE_MODE=local`)**: Saves directly to host disk (`./outputs/`) and serves via Express static HTTP URL (`http://localhost:3001/outputs/...`). No cloud account required!
   - **Bunny CDN Only (`STORAGE_MODE=bunny`)**: Uploads directly to global Bunny Storage edge network.
   - **Server + Bunny (`STORAGE_MODE=both`)**: Dual-saves locally on the host server and uploads to Bunny CDN simultaneously.
-- ⚡ **REST API Endpoints**: Single clean endpoint or dedicated provider endpoints for image generation and virtual fashion try-on lookbooks.
-- 🛠️ **Configurable Port**: Change port on the fly via `PORT` in `.env`.
+- ⚡ **REST API Endpoints**: Clean, standardized endpoints for text-to-image and image-to-image generation.
+- 🛠️ **Configurable Port**: Change port dynamically via `PORT` in `.env`.
 - 🛡️ **Airtight Git Privacy**: `.gitignore` strictly protects your browser profile data, session credentials, private prompts, and environment secrets from being pushed to Git.
 
 ---
@@ -72,6 +72,7 @@ A high-performance Express REST API server and automated browser engine for gene
                              {
                                "success": true,
                                "jobId": "gen_...",
+                               "provider": "chatgpt",
                                "url": "https://... or http://...",
                                "cdnUrl": "https://your-zone.b-cdn.net/...",
                                "localUrl": "http://localhost:3001/outputs/..."
@@ -80,7 +81,7 @@ A high-performance Express REST API server and automated browser engine for gene
 
 1. **API Request**: The client sends a prompt and optional reference image to the Express API.
 2. **Browser Engine**: Playwright opens a browser context utilizing the persistent session profile (saved from your initial one-time login).
-3. **AI Generation**: Prompts and attachments are submitted to the web interface; the engine detects generation progress and downloads the generated image buffer.
+3. **AI Generation**: Prompts and attachments are submitted to the web interface; the engine detects generation progress and extracts the generated image buffer.
 4. **Storage Orchestration**: The buffer is saved to local server disk (`./outputs/`) and/or uploaded to Bunny CDN according to `STORAGE_MODE`.
 5. **Response**: The API responds with the job ID and accessible image URLs.
 
@@ -131,7 +132,7 @@ HEADLESS=false
 
 ### Step 3: One-Time Interactive Session Login
 
-Before running automated generations, you must authenticate once so your browser session cookies are saved:
+Before running automated generations, authenticate once so your browser session cookies are saved:
 
 #### For ChatGPT:
 ```bash
@@ -168,7 +169,7 @@ You should see the server startup banner:
 
 ```
 ================================================================
-🚀 [AI Image Generation & Virtual Try-On Express Server]
+🚀 [AI Image Generation Express REST API Server]
 Running on http://localhost:3001
 ================================================================
   - Default Provider:        CHATGPT
@@ -179,7 +180,6 @@ Running on http://localhost:3001
   - ChatGPT Generation API:  POST http://localhost:3001/api/generate/chatgpt
   - Gemini Generation API:   POST http://localhost:3001/api/generate/gemini
   - Generic Generation API:  POST http://localhost:3001/api/generate
-  - Submit Try-On Pipeline:  POST http://localhost:3001/api/tryon
 ----------------------------------------------------------------
 ⚠️  DISCLAIMER & RESPONSIBLE USE:
 Use browser sessions responsibly. Excessive automated queries or
@@ -310,7 +310,7 @@ pm2 startup
 ```json
 {
   "status": "ok",
-  "service": "AI Image Generation & Try-On Express API Server",
+  "service": "AI Image Generation Express API Server",
   "port": 3001,
   "defaultProvider": "chatgpt",
   "storageMode": "both",
@@ -332,7 +332,7 @@ pm2 startup
 curl -X POST http://localhost:3001/api/generate/chatgpt \
   -H "Content-Type: application/json" \
   -d '{
-    "prompt": "A stylish cyberpunk fashion portrait with neon lights in 8k photography style",
+    "prompt": "A futuristic electric hypercar in a neon-lit showroom, 8k render",
     "storageMode": "both"
   }'
 ```
@@ -403,34 +403,14 @@ curl -X POST http://localhost:3001/api/generate/gemini \
 
 ---
 
-### 5. Virtual Fashion Try-On Pipeline
-- **Route**: `POST /api/tryon`
-- **Body Parameters**:
-  - `url` *(string, optional)*: Web URL, Instagram post, or local path containing outfits.
-  - `provider` *(string, optional)*: `'chatgpt'` or `'gemini'`.
-  - `maxImages` *(number, optional)*: Number of outfit looks to generate (default: `4`).
-
-```bash
-curl -X POST http://localhost:3001/api/tryon \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f",
-    "provider": "chatgpt",
-    "maxImages": 2
-  }'
-```
-
----
-
 ## 🔒 Security & Git Protection
 
 The repository includes a comprehensive `.gitignore` ensuring:
 - 🚫 **No Browser Profiles**: `chatgpt-profile/` and `gemini-profile/` containing login cookies are never tracked or pushed to Git.
 - 🚫 **No Secret Credentials**: `.env` and private key files are strictly excluded.
-- 🚫 **No Private Prompts**: Custom `prompt.ts` files are excluded.
 - 🚫 **No Generated Images**: Local `outputs/` and `tmp/` folders are ignored.
 
-Before pushing to GitHub, you can verify with:
+Before pushing to GitHub, verify with:
 ```bash
 git status -u
 ```
@@ -439,4 +419,4 @@ You will see only clean engine source code, templates (`.env.example`), and docu
 ---
 
 ## 📄 License
-MIT License. Built for modularity and educational integration.
+MIT License.

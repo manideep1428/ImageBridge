@@ -26,8 +26,6 @@ export interface AppConfig {
   tmpDir: string;
   chatgptUrl: string;
   geminiUrl: string;
-  instagramAccessToken?: string;
-  instagramUsername?: string;
 }
 
 export function getConfig(): AppConfig {
@@ -62,8 +60,6 @@ export function getConfig(): AppConfig {
     tmpDir: path.resolve(process.cwd(), './tmp'),
     chatgptUrl: process.env.CHATGPT_URL || 'https://chatgpt.com',
     geminiUrl: process.env.GEMINI_URL || 'https://gemini.google.com',
-    instagramAccessToken: process.env.INSTAGRAM_ACCESS_TOKEN || '',
-    instagramUsername: process.env.INSTAGRAM_USERNAME || '',
   };
 }
 
