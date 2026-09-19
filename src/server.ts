@@ -61,6 +61,12 @@ async function generateAndUploadImage(
   const browserManager = new BrowserManager({
     profileDir,
     headless: currentConfig.headless,
+    useRealChrome: currentConfig.useRealChrome,
+    humanInput: {
+      enabled: currentConfig.humanInput,
+      typing: currentConfig.humanTyping,
+      visualizeCursor: currentConfig.humanVisualizeCursor,
+    },
   });
 
   try {

@@ -2,6 +2,7 @@ import path from 'node:path';
 import { chromium as vanillaChromium, type BrowserContext, type Page } from 'playwright';
 import { addExtra } from 'playwright-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import { HumanInputFactory, type HumanInputOptions } from '../human/index.js';
 
 // Properly initialize playwright-extra stealth plugin
 const chromiumStealth = addExtra(vanillaChromium);
@@ -11,6 +12,12 @@ export interface BrowserManagerOptions {
   profileDir: string;
   headless: boolean;
   useRealChrome?: boolean;
+  /**
+   * How human-like the pointer and keyboard should be. Omitted fields fall back
+   * to DEFAULT_HUMAN_INPUT_OPTIONS; pass { enabled: false } for the plain
+   * Playwright clicks this project used before.
+   */
+  humanInput?: Partial<HumanInputOptions>;
 }
 
 /**
@@ -18,6 +25,12 @@ export interface BrowserManagerOptions {
  * Uses `addExtra(vanillaChromium)` + `StealthPlugin()` to bypass Google Accounts sign-in checks.
  */
 export class BrowserManager {
+  /**
+   * Hands out the human-like input for a page. Providers receive the manager
+   * and nothing else, so this is how their sub-modules get their pointer.
+   */
+  readonly humanInput: HumanInputFactory;
+
   private options: BrowserManagerOptions;
   private context: BrowserContext | null = null;
 
@@ -27,6 +40,8 @@ export class BrowserManager {
       headless: options.headless,
       useRealChrome: options.useRealChrome ?? true,
     };
+
+    this.humanInput = new HumanInputFactory(options.humanInput);
   }
 
   /**

@@ -22,6 +22,8 @@ A high-performance Express REST API server and automated browser engine for gene
   - **Bunny CDN Only (`STORAGE_MODE=bunny`)**: Uploads directly to global Bunny Storage edge network.
   - **Server + Bunny (`STORAGE_MODE=both`)**: Dual-saves locally on the host server and uploads to Bunny CDN simultaneously.
 - ⚡ **REST API Endpoints**: Clean, standardized endpoints for text-to-image and image-to-image generation.
+- 🖱️ **Human-Like Input**: The pointer travels a random cubic Bézier path timed by **Fitts' law** and prompts are typed key by key, ported from the [rewards-farmer](https://github.com/User0332/rewards-farmer) project. Toggle with `HUMAN_INPUT` / `HUMAN_TYPING`.
+- 🐳 **Docker Ready**: `docker compose up -d --build` runs the API headlessly with the browser profiles and outputs mounted from the host.
 - 🛠️ **Configurable Port**: Change port dynamically via `PORT` in `.env`.
 - 🛡️ **Airtight Git Privacy**: `.gitignore` strictly protects your browser profile data, session credentials, private prompts, and environment secrets from being pushed to Git.
 
@@ -234,6 +236,249 @@ BUNNY_STORAGE_REGION_HOST=storage.bunnycdn.com
 
 ---
 
+## 🖱️ Human-Like Pointer, Typing & Ban Risk
+
+Every click this server makes travels the way a hand does. The equations come
+from [rewards-farmer](https://github.com/User0332/rewards-farmer)
+(`src/mouse_trajectory.py`, `src/fitts_law.py`, `src/mimic_typing.py`), ported
+onto Playwright and applied to **both** ChatGPT and Gemini. The REST API is
+unchanged.
+
+### Why an automated click is easy to spot
+
+A `locator.click()` is not a click. Playwright resolves the element, reads its
+box, jumps the mouse to that exact coordinate in one event, then presses and
+releases with no delay. A detector needs nothing clever to see it:
+
+| What a detector looks for | What plain automation produces |
+| --- | --- |
+| A movement path | One event, from wherever the pointer was to the target |
+| Realistic timing | Zero elapsed time regardless of distance |
+| Trial-to-trial variation | Byte-identical on every run |
+| Aiming error | Every landing point is the exact centre |
+| Button hold time | `mousedown` and `mouseup` in the same millisecond |
+| Text entry | One `insertText`, no `keydown`/`keyup` sequence |
+| A plausible start point | Every move starts from a fixed corner |
+
+Each of those is weak evidence on its own. Together, in one session, they say
+"script" with certainty.
+
+### The pointer: every equation and what it buys
+
+| Step | Implementation | What it removes |
+| --- | --- | --- |
+| **1. Start where the pointer is** | Position is tracked in the page (`window.cursorX/cursorY` on every `mousemove`), persisted to `localStorage`, and reinstalled after each navigation. | Moves that all begin at the same origin. |
+| **2. Aim like a person** | `chooseTargetInElement` picks a random point in the middle half of the box: x ∈ [25%, 75%], y ∈ [25%, 75%]. | Pixel-perfect centre clicks. |
+| **3. Take the right amount of time** | Fitts' law, `MT = a + b · ID` with `ID = log2(2D / W)` and `W = (height + width) / 2`; `a = 0.55`, `b = 0.1276`, measured from real click trials. | Instant movement, and any fixed per-click delay. |
+| **4. Take a curved route** | A cubic Bézier with control points offset ±20–40px from each endpoint, re-drawn for every move. | Straight lines. |
+| **5. Wobble like a hand** | Distortion zones every 0.05 of the move, each 15% likely, pulling the path 1–5px off the curve and back. | Perfectly smooth curves. |
+| **6. Accelerate and decelerate** | A logistic sigmoid (`2/(1+e⁻ˣ) − 1`) reshapes time, so the pointer is slow, fast, then slow again. | Constant velocity from the first event. |
+| **7. Press like a person** | `mousedown` → 200–300ms hold → `mouseup`. | Same-millisecond press and release. |
+| **8. Stay inside the window** | Every sampled point is clamped to `innerWidth − 2` / `innerHeight − 2`, because a distorted curve can overshoot and Chromium drops out-of-bounds coordinates. | Failed or dropped moves. |
+
+Step 3 is what makes this hold up under statistical analysis rather than only to
+the eye. The measured model gives:
+
+| Distance | Target (w×h) | Movement time |
+| --- | --- | --- |
+| 200px | 100×40 | ≈ 0.91s |
+| 200px | 400×40 | ≈ 0.72s |
+| 1000px | 100×40 | ≈ 1.21s |
+| 1000px | 400×40 | ≈ 1.02s |
+
+A long trip to a small button therefore takes longer than a short trip to a big
+one, in the ratio a real user's data produced.
+
+### The keyboard: rhythm instead of paste
+
+`fill()` writes the value in one operation, and a `contenteditable` prompt box
+receives one `insertText` with no key events at all. `HumanKeyboard` types one
+character at a time and pauses after each, with the pause drawn from
+`mimic_typing.py`'s measured distribution:
+
+| Pause | Probability |
+| --- | --- |
+| 0–100ms | 37.7% |
+| 100–200ms | 54.9% |
+| 200–400ms | 7.4% |
+
+That produces the uneven rhythm of real typing — bursts of fast characters with
+the occasional longer pause — instead of one flat interval. The same sampler
+paces the `Enter` keypress in the submit fallback.
+
+### Behaviour that is not about the pointer
+
+Three smaller decisions matter for the same reason:
+
+- **No gratuitous scrolling.** An element below the fold is brought in with
+  `behavior: 'smooth'` and the rect is polled until it stops moving — but only
+  when it is genuinely out of view. Re-centering a visible element shifts the
+  page for no reason and is itself a tell.
+- **Scroll gestures, not jumps.** `page.mouse.wheel` in varying steps of
+  40–340px with 40–120ms gaps, and a return-to-top that reads the real `scrollY`
+  instead of unwinding a counted number of equal steps.
+- **One instance per page.** The pointer position, the visual cursor and the
+  tracker live in a `HumanInput` bound to a single page, so state carries
+  correctly and two providers can never share a pointer.
+
+### Configuration
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `HUMAN_INPUT` | `true` | Bézier paths, Fitts' law timing, humanised clicks. `false` restores plain Playwright clicks. |
+| `HUMAN_TYPING` | `true` | Type prompts key by key. `false` uses `fill()`. |
+| `HUMAN_VISUALIZE_CURSOR` | `false` | Draw a red dot where the pointer is (use with `HEADLESS=false`). |
+
+The code is in `src/human/`: `pointer.ts` is the maths as pure functions,
+`mouse.ts` the pointer, `keyboard.ts` the typing, `human-input.ts` the per-page
+facade. `BrowserManager` hands out one instance per page to both providers, so a
+single set of `HumanInputOptions` covers ChatGPT and Gemini.
+
+If a humanised click fails for any reason, the call falls back to a plain
+Playwright click: the path is a nicety, clicking the right element is the job.
+Typing falls back to `fill()` if the field turns out to be empty afterwards.
+
+### ⚠️ What this does **not** do
+
+Be clear about the boundary, because the marketing version of this idea is
+misleading. Human-like input fixes **one layer** of detection: the input-event
+layer. That is a real improvement — it is the easiest layer to check, and plenty
+of systems check nothing else — but it is not a guarantee, and no technique can
+honestly promise "zero bans":
+
+| Risk | Covered? | Why |
+| --- | --- | --- |
+| Input-event patterns (path, timing, rhythm) | ✅ | This is what the port above addresses. |
+| Browser fingerprint (`navigator.webdriver`, CDP traces, canvas/WebGL) | 🟡 | Partly, via `playwright-extra` + `puppeteer-extra-plugin-stealth` and `--disable-blink-features=AutomationControlled`. Incomplete by nature. |
+| Headless detection | 🟡 | Chromium's new headless mode is closer to headed than the old one, but still distinguishable. |
+| TLS / HTTP fingerprint (JA3/JA4, header order) | ❌ | Playwright's Chromium sends its own handshake. A Chromium build is plausible, but it is not the Chrome the UA string claims. |
+| IP reputation | ❌ | No proxy support. Many requests from one datacenter IP look like exactly what they are. |
+| Account-level heuristics | ❌ | Daily volume, prompt cadence and generations per account are not something pointer code can disguise. |
+| Platform ToS | ❌ | Automation may violate the terms regardless of how the events are formed. |
+
+**In practice ban risk is driven far more by volume, IP and account history than
+by mouse paths.** The levers that actually move it: keep request volume low, one
+account per profile, do not leave the loop running unattended for hours, and
+prefer a residential connection over a VPS IP. Treat the human-like input as
+removing a *signal*, not as a licence to increase volume. The disclaimer at the
+top of this file applies in full: **use at your own risk.**
+
+### Seeing it work
+
+```bash
+# Watch the pointer move in a visible window
+HUMAN_VISUALIZE_CURSOR=true HEADLESS=false npm run server
+
+# Prove the pointer never leaves the viewport, that a second move starts where
+# the first ended, and that the Fitts' law numbers match the measured model
+npm test
+```
+
+The suite runs the real pointer code against a fake page whose `evaluate`
+executes the actual page-side functions, so the path, the clamping, the cursor
+tracking and the typing rhythm are all verified without a browser.
+
+---
+
+## 🐳 Docker Deployment
+
+Everything needed to host the API headlessly: `Dockerfile`, `docker-compose.yml`
+and `.dockerignore`. Nothing has to be installed on the host but Docker — the
+image brings Node, tsx, Playwright's Chromium and every shared library Chromium
+needs.
+
+### What is in the image
+
+| Layer | Contents |
+| --- | --- |
+| Base | `node:24-bookworm-slim` |
+| Dependencies | `npm ci` from `package-lock.json`, **including** dev dependencies, because `tsx` is what runs the TypeScript at runtime; there is no build step |
+| Browser | `npx playwright install --with-deps chromium`, kept at `/ms-playwright` so `node_modules` can be replaced without losing it |
+| Source | The repository, minus everything in `.dockerignore` |
+| Start | `npm run start:prod` → `tsx src/server.ts` (not the watch mode meant for development) |
+| Health | `HEALTHCHECK` on `GET /health` using Node's own `fetch`, so the image needs no curl |
+
+### Requirements
+
+- Docker Engine 20.10+ with Compose v2 (`docker compose`, not `docker-compose`)
+- Roughly 2.5GB of disk for the image
+- A **Linux** host if you want to reuse an existing sign-in (see step 2)
+
+### 1. Configure `.env`
+
+```bash
+cp .env.example .env
+```
+
+Compose reads `.env` twice: for `${...}` interpolation inside the compose file,
+and as the container's environment. Editing `.env` and restarting covers every
+setting except the ones the container must own:
+
+| Variable | Container value | Why |
+| --- | --- | --- |
+| `HEADLESS` | `true` (set by compose) | There is no display in a container. |
+| `USE_REAL_CHROME` | `false` (set by image and compose) | Playwright's Chromium is not Google Chrome, and `channel: 'chrome'` needs the latter. |
+| `OUTPUT_DIR` | `/app/outputs` (set by compose) | So generated files land in the mounted directory. |
+| `PORT` | from `.env` | Used on both sides of the port mapping, so container and host agree. |
+| `STORAGE_MODE` | from `.env` | `local`, `bunny` or `both`. |
+| `SERVER_BASE_URL` | from `.env` | Must be the URL clients actually use, or `/outputs/...` links point at `localhost`. |
+| `HUMAN_INPUT`, `HUMAN_TYPING` | from `.env` | Defaults are fine; see the previous section. |
+| `BUNNY_*` | from `.env` | Only needed for `STORAGE_MODE=bunny` or `both`. |
+
+### 2. Sign in once on the host
+
+A headless container has no display to type a password into, so the sign-in
+happens on the host and the profile directory is mounted in:
+
+```bash
+npm run login:chatgpt     # writes ./chatgpt-profile
+npm run login:gemini      # writes ./gemini-profile
+```
+
+This only works when the host is Linux. Chromium encrypts cookie values with a
+key the operating system holds, and on Windows that key is wrapped with DPAPI
+and tied to the Windows account that wrote it, so a container cannot unwrap it
+and reads every cookie as absent: the browser starts, looks healthy, and behaves
+as though it were logged out. Sign in normally on a Linux host, close the window
+the usual way afterwards, then mount the directory.
+
+### 3. Start it
+
+```bash
+docker compose up -d --build
+docker compose logs -f imagebridge
+curl http://localhost:3001/health
+```
+
+| Mount | Why |
+| --- | --- |
+| `./chatgpt-profile` → `/app/chatgpt-profile` | The ChatGPT sign-in. |
+| `./gemini-profile` → `/app/gemini-profile` | The Gemini sign-in. |
+| `./outputs` → `/app/outputs` | Generated images, served as `/outputs/<file>`. |
+
+Generated images live in a host directory rather than inside the container, so
+`STORAGE_MODE=local` keeps working across rebuilds and the files can be served by
+a reverse proxy.
+
+```bash
+# Rebuild after changing the source
+docker compose up -d --build
+
+# One request against the running container
+curl -X POST http://localhost:3001/api/generate/gemini \
+  -H 'Content-Type: application/json' \
+  -d '{"prompt":"a red fox in snow","storageMode":"local"}'
+```
+
+`docker compose down` stops it. The profile directories are on the host, so the
+sign-in survives.
+
+Chromium needs more than the default 64MB of shared memory, which is why the
+compose file sets `shm_size: 1gb`; without it the browser can crash partway
+through a page. The container runs as root because it writes to mounted profile
+directories and outputs owned by the host user.
+
+---
 ## 🖥️ Server / VPS (Linux / Ubuntu) Deployment Guide
 
 To deploy this backend on a headless Linux VPS (e.g. Ubuntu 22.04 / 24.04):

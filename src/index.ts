@@ -13,6 +13,17 @@ export type { SaveImageResult, SaveImageOptions } from './storage/storage-manage
 
 export { BrowserManager } from './browser/browser-manager.js';
 
+export {
+  HumanInput,
+  HumanInputFactory,
+  HumanMouse,
+  HumanKeyboard,
+  humanizedClick,
+  resolveHumanInputOptions,
+  DEFAULT_HUMAN_INPUT_OPTIONS,
+} from './human/index.js';
+export type { HumanInputOptions, IHumanInput, HumanInputProvider } from './human/index.js';
+
 export { ChatGPTPage } from './chatgpt/chatgpt-page.js';
 export { ChatGPTComposer } from './chatgpt/composer.js';
 export { ChatGPTImageUpload } from './chatgpt/image-upload.js';

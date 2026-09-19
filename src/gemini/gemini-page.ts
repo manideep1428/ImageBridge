@@ -6,6 +6,7 @@ import type {
   GenerateImageOptions,
   GeneratedImage,
 } from '../providers/types.js';
+import type { HumanInputProvider } from '../human/index.js';
 import { GeminiComposer } from './composer.js';
 import { GeminiImageUpload } from './image-upload.js';
 import { GeminiGenerationDetector } from './generation.js';
@@ -15,6 +16,8 @@ export interface GeminiPageOptions {
   geminiUrl?: string;
   tmpDir?: string;
   debugDir?: string;
+  /** Shared with the composer and the uploader so they click the human way. */
+  humanInput?: HumanInputProvider;
 }
 
 export class GeminiPage implements IAIProvider {
@@ -31,8 +34,12 @@ export class GeminiPage implements IAIProvider {
     this.browserManager = browserManager;
     this.geminiUrl = options?.geminiUrl || 'https://gemini.google.com';
 
-    this.composer = new GeminiComposer();
-    this.imageUpload = new GeminiImageUpload();
+    // Falls back to the manager's own factory, so callers that do not pass one
+    // still get human-like input rather than plain Playwright clicks.
+    const humanInput = options?.humanInput ?? browserManager.humanInput;
+
+    this.composer = new GeminiComposer(humanInput);
+    this.imageUpload = new GeminiImageUpload(humanInput);
     this.generationDetector = new GeminiGenerationDetector();
     this.imageResult = new GeminiImageResult();
   }

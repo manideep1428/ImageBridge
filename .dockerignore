@@ -1,0 +1,25 @@
+# Everything the image installs or creates itself.
+node_modules
+**/node_modules
+
+# A nested, unrelated project with its own git repository; never needed here.
+rewards-farmer
+
+# Local state: browser profiles, generated images, logs, secrets.
+chatgpt-profile
+gemini-profile
+*profile*
+outputs
+**/outputs
+debug
+tmp
+logs
+*.log
+.env
+.env.*
+!.env.example
+
+# Repository metadata.
+.git
+.gitignore
+tests

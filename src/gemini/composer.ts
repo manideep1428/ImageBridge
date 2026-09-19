@@ -1,7 +1,18 @@
 import type { Page } from 'playwright';
 import type { IAIComposer } from '../providers/types.js';
+import { humanizedClick, type HumanInputProvider } from '../human/index.js';
 
 export class GeminiComposer implements IAIComposer {
+  /**
+   * Optional: when present, the prompt box is focused with a human-like click
+   * and the text is typed key by key instead of pasted in one fill().
+   */
+  private humanInput?: HumanInputProvider;
+
+  constructor(humanInput?: HumanInputProvider) {
+    this.humanInput = humanInput;
+  }
+
   /**
    * Enters the prompt into Gemini rich-textarea / contenteditable div.
    */
@@ -36,11 +47,18 @@ export class GeminiComposer implements IAIComposer {
       promptInput = page.locator('rich-textarea div[contenteditable="true"], div[contenteditable="true"]').first();
     }
 
-    await promptInput.click();
-    await page.waitForTimeout(300);
+    const human = this.humanInput?.forPage(page);
 
-    // Fill prompt text
-    await promptInput.fill(text);
+    if (human) {
+      await human.typeInto(promptInput, text);
+    } else {
+      await promptInput.click();
+      await page.waitForTimeout(300);
+
+      // Fill prompt text
+      await promptInput.fill(text);
+    }
+
     await page.waitForTimeout(500);
   }
 
@@ -58,12 +76,14 @@ export class GeminiComposer implements IAIComposer {
       'button:has(span:text("send"))',
     ];
 
+    const human = this.humanInput?.forPage(page);
+
     let submitted = false;
     for (const selector of sendBtnSelectors) {
       try {
         const btn = page.locator(selector).first();
         if (await btn.isVisible({ timeout: 1500 }) && await btn.isEnabled()) {
-          await btn.click();
+          await humanizedClick(human, btn, 1500);
           submitted = true;
           break;
         }
@@ -74,7 +94,12 @@ export class GeminiComposer implements IAIComposer {
 
     if (!submitted) {
       console.log('[GeminiComposer] Send button click skipped/failed, pressing Enter...');
-      await page.keyboard.press('Enter');
+
+      if (human) {
+        await human.pressKey('Enter');
+      } else {
+        await page.keyboard.press('Enter');
+      }
     }
 
     await page.waitForTimeout(1000);

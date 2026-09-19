@@ -6,6 +6,8 @@
   "scripts": {
     "start": "tsx watch src/server.ts",
     "server": "tsx watch src/server.ts",
+    "start:prod": "tsx src/server.ts",
+    "test": "node --import tsx --test \"tests/**/*.test.ts\"",
     "login": "tsx login.ts",
     "login:chatgpt": "tsx login.ts --provider chatgpt",
     "login:gemini": "tsx login.ts --provider gemini"

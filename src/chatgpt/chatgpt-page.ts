@@ -6,6 +6,7 @@ import type {
   GenerateImageOptions,
   GeneratedImage,
 } from '../providers/types.js';
+import type { HumanInputProvider } from '../human/index.js';
 import { ChatGPTComposer } from './composer.js';
 import { ChatGPTImageUpload } from './image-upload.js';
 import { ChatGPTGenerationDetector } from './generation.js';
@@ -15,6 +16,8 @@ export interface ChatGPTPageOptions {
   chatgptUrl?: string;
   tmpDir?: string;
   debugDir?: string;
+  /** Shared with the composer and the uploader so they click the human way. */
+  humanInput?: HumanInputProvider;
 }
 
 export class ChatGPTPage implements IAIProvider {
@@ -31,8 +34,12 @@ export class ChatGPTPage implements IAIProvider {
     this.browserManager = browserManager;
     this.chatgptUrl = options?.chatgptUrl || 'https://chatgpt.com';
 
-    this.composer = new ChatGPTComposer();
-    this.imageUpload = new ChatGPTImageUpload();
+    // Falls back to the manager's own factory, so callers that do not pass one
+    // still get human-like input rather than plain Playwright clicks.
+    const humanInput = options?.humanInput ?? browserManager.humanInput;
+
+    this.composer = new ChatGPTComposer(humanInput);
+    this.imageUpload = new ChatGPTImageUpload(humanInput);
     this.generationDetector = new ChatGPTGenerationDetector();
     this.imageResult = new ChatGPTImageResult();
   }

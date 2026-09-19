@@ -41,6 +41,12 @@ export class JobProcessor {
     this.browserManager = new BrowserManager({
       profileDir: this.options.profileDir!,
       headless: this.options.headless!,
+      useRealChrome: config.useRealChrome,
+      humanInput: {
+        enabled: config.humanInput,
+        typing: config.humanTyping,
+        visualizeCursor: config.humanVisualizeCursor,
+      },
     });
 
     this.aiProvider = createAIProvider(provider, this.browserManager, {

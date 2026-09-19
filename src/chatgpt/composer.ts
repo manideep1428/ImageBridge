@@ -1,7 +1,18 @@
 import type { Page } from 'playwright';
 import type { IAIComposer } from '../providers/types.js';
+import { humanizedClick, type HumanInputProvider } from '../human/index.js';
 
 export class ChatGPTComposer implements IAIComposer {
+  /**
+   * Optional: when present, the prompt box is focused with a human-like click
+   * and the text is typed key by key instead of pasted in one fill().
+   */
+  private humanInput?: HumanInputProvider;
+
+  constructor(humanInput?: HumanInputProvider) {
+    this.humanInput = humanInput;
+  }
+
   /**
    * Enters the prompt into ChatGPT prompt text area.
    */
@@ -14,11 +25,18 @@ export class ChatGPTComposer implements IAIComposer {
     await page.waitForSelector(promptInputSelector, { state: 'visible', timeout: 30000 });
     const promptInput = page.locator(promptInputSelector).first();
 
-    await promptInput.click();
-    await page.waitForTimeout(300);
+    const human = this.humanInput?.forPage(page);
 
-    // Clear existing text and fill
-    await promptInput.fill(text);
+    if (human) {
+      await human.typeInto(promptInput, text);
+    } else {
+      await promptInput.click();
+      await page.waitForTimeout(300);
+
+      // Clear existing text and fill
+      await promptInput.fill(text);
+    }
+
     await page.waitForTimeout(500);
   }
 
@@ -29,16 +47,22 @@ export class ChatGPTComposer implements IAIComposer {
     console.log('[ChatGPTComposer] Submitting prompt...');
 
     const sendBtnSelector = 'button[data-testid="send-button"], button[aria-label="Send prompt"], button[aria-label="Send message"]';
-    
+    const human = this.humanInput?.forPage(page);
+
     // Wait briefly for send button to be enabled
     try {
       await page.waitForSelector(sendBtnSelector, { state: 'visible', timeout: 5000 });
       const sendBtn = page.locator(sendBtnSelector).first();
-      await sendBtn.click();
+      await humanizedClick(human, sendBtn);
     } catch {
       // Fallback: press Enter key
       console.log('[ChatGPTComposer] Send button click failed or not found, pressing Enter...');
-      await page.keyboard.press('Enter');
+
+      if (human) {
+        await human.pressKey('Enter');
+      } else {
+        await page.keyboard.press('Enter');
+      }
     }
 
     await page.waitForTimeout(1000);

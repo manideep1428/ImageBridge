@@ -1,0 +1,38 @@
+# docker compose up -d --build
+#
+# Sign-in has to happen once by hand before this is useful: the profile
+# directories start logged out. See the Docker section of the README.
+
+services:
+  imagebridge:
+    build: .
+    image: imagebridge
+    # An init process, so the Chromium processes Playwright spawns are reaped and
+    # a stop signal reaches node instead of stopping at npm.
+    init: true
+    # Chromium wants more than the default 64MB of shared memory and crashes
+    # partway through a page without it.
+    shm_size: 1gb
+    ports:
+      # Both sides use PORT, because .env is passed into the container as well:
+      # mapping host PORT to a hardcoded 3001 would break as soon as .env sets
+      # PORT to anything else and the app listened elsewhere.
+      - "${PORT:-3001}:${PORT:-3001}"
+    env_file:
+      - .env
+    environment:
+      HEADLESS: "true"
+      # The image ships Playwright's Chromium, not Google Chrome, and
+      # channel: 'chrome' needs the latter. See the Dockerfile.
+      USE_REAL_CHROME: "false"
+      # Written into the mounted volume below, so generated images survive a
+      # container rebuild.
+      OUTPUT_DIR: /app/outputs
+    volumes:
+      # Keeps both sign-ins across container rebuilds. Sign in on a Linux host
+      # or inside this image; a profile signed in on Windows or macOS stays
+      # locked to that machine's keyring and reads as logged out here.
+      - ./chatgpt-profile:/app/chatgpt-profile
+      - ./gemini-profile:/app/gemini-profile
+      - ./outputs:/app/outputs
+    restart: unless-stopped
